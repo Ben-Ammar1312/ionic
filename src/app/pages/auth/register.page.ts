@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -44,6 +44,10 @@ import { AuthService, UserRole } from '../../services/auth.service';
   ],
 })
 export class RegisterPage {
+  private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+
   readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
     email: ['', [Validators.required, Validators.email]],
@@ -53,8 +57,6 @@ export class RegisterPage {
   });
   errorMessage?: string;
   loading = false;
-
-  constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {}
 
   get nameInvalid(): boolean {
     const control = this.form.controls.name;

@@ -1,5 +1,5 @@
 import { CommonModule, DatePipe, NgFor, NgIf } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import {
   IonButton,
   IonButtons,
@@ -61,17 +61,14 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
   private alertMarkers = new Map<string, any>();
   private responderMarker?: any;
   private locationWatchId?: string;
+  private readonly alertsService = inject(AlertsService);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly toastCtrl = inject(ToastController);
+  private readonly socket = inject(SocketService);
   private readonly newAlertListener = (alert: Alert) => this.upsertAlert(alert, true);
   private readonly broadcastAlertListener = (alert: Alert) => this.upsertAlert(alert, false);
   private readonly updateAlertListener = (alert: Alert) => this.processAlertUpdate(alert);
-
-  constructor(
-    private alertsService: AlertsService,
-    private auth: AuthService,
-    private router: Router,
-    private toastCtrl: ToastController,
-    private socket: SocketService
-  ) {}
 
   ngOnInit(): void {
     this.socket.connect();

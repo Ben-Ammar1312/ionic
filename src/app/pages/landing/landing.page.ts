@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonContent, IonSpinner } from '@ionic/angular/standalone';
 import { firstValueFrom } from 'rxjs';
@@ -11,7 +11,8 @@ import { AuthService, UserProfile } from '../../services/auth.service';
   imports: [IonContent, IonSpinner],
 })
 export class LandingPage implements OnInit {
-  constructor(private router: Router, private auth: AuthService) {}
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   async ngOnInit(): Promise<void> {
     const existing = this.auth.currentUser();

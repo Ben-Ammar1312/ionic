@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -23,7 +23,7 @@ export interface Alert {
 
 @Injectable({ providedIn: 'root' })
 export class AlertsService {
-  constructor(private http: HttpClient) {}
+  private readonly http = inject(HttpClient);
 
   list(filters?: { status?: 'pending' | 'accepted' | 'active' | 'all'; mine?: boolean }): Observable<Alert[]> {
     const params: Record<string, string> = {};

@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -23,8 +23,7 @@ export class AuthService {
   private userSubject = new BehaviorSubject<UserProfile | null>(this.loadStoredUser());
 
   user$ = this.userSubject.asObservable();
-
-  constructor(private http: HttpClient) {}
+  private readonly http = inject(HttpClient);
 
   register(payload: { name: string; email: string; password: string; role: UserRole }): Observable<AuthResponse> {
     return this.http

@@ -1,5 +1,5 @@
 import { CommonModule, DatePipe, NgFor, NgIf } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -81,6 +81,12 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
   photoPreview?: string;
   photoFile?: File;
 
+  private readonly fb = inject(FormBuilder);
+  private readonly alertsService = inject(AlertsService);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly toastCtrl = inject(ToastController);
+
   readonly createForm = this.fb.nonNullable.group({
     type: ['medical', Validators.required],
     description: ['', [Validators.required, Validators.minLength(6)]],
@@ -89,14 +95,6 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
 
   private map: any;
   private markers = new Map<string, any>();
-
-  constructor(
-    private fb: FormBuilder,
-    private alertsService: AlertsService,
-    private auth: AuthService,
-    private router: Router,
-    private toastCtrl: ToastController
-  ) {}
 
   async ngAfterViewInit(): Promise<void> {
     await this.initMap();
