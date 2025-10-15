@@ -1,0 +1,82 @@
+:host {
+  display: block;
+}
+
+ion-content {
+  --background: #f7f7f7;
+}
+
+.map-wrapper {
+  position: relative;
+  height: 100%;
+}
+
+.map-container {
+  height: 100%;
+  width: 100%;
+}
+
+.alerts-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  padding: 12px 16px 24px;
+  max-height: 35%;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.alerts-sheet h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.alerts-sheet ion-list {
+  max-height: calc(35vh - 56px);
+  overflow-y: auto;
+}
+
+.alerts-sheet h3 {
+  font-size: 0.95rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.alerts-sheet p {
+  margin: 2px 0;
+}
+
+.alerts-sheet p.meta {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.photo-block {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.photo-preview {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-top: 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 5;
+}

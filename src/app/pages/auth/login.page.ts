@@ -1,0 +1,92 @@
+import { Component, OnInit } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import {
+  IonButton,
+  IonContent,
+  IonHeader,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonSpinner,
+  IonText,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
+import { NgIf } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
+import { AuthService, UserRole } from '../../services/auth.service';
+
+@Component({
+  selector: 'app-login',
+  standalone: true,
+  templateUrl: './login.page.html',
+  imports: [
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButton,
+    RouterLink,
+    ReactiveFormsModule,
+    IonList,
+    IonItem,
+    IonLabel,
+    IonInput,
+    IonText,
+    NgIf,
+    IonSpinner,
+  ],
+})
+export class LoginPage implements OnInit {
+  readonly form = this.fb.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(6)]],
+  });
+  errorMessage?: string;
+  loading = false;
+
+  constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {}
+
+  ngOnInit(): void {
+    const user = this.auth.currentUser();
+    if (user) {
+      this.redirect(user.role);
+    }
+  }
+
+  get emailInvalid(): boolean {
+    const control = this.form.controls.email;
+    return control.invalid && (control.dirty || control.touched);
+  }
+
+  get passwordInvalid(): boolean {
+    const control = this.form.controls.password;
+    return control.invalid && (control.dirty || control.touched);
+  }
+
+  async submit(): Promise<void> {
+    if (this.form.invalid || this.loading) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    this.loading = true;
+    this.errorMessage = undefined;
+
+    try {
+      const response = await firstValueFrom(this.auth.login(this.form.getRawValue()));
+      this.redirect(response.role);
+    } catch (error: any) {
+      this.errorMessage = error?.error?.message || 'Could not sign in. Please try again.';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private redirect(role: UserRole): void {
+    const target = role === 'responder' ? '/respond' : '/alerts';
+    this.router.navigateByUrl(target, { replaceUrl: true });
+  }
+}

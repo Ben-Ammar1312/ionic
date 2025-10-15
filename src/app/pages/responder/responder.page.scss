@@ -1,0 +1,104 @@
+:host {
+  display: block;
+}
+
+ion-content {
+  --background: #f7f7f7;
+}
+
+.map-wrapper {
+  position: relative;
+  height: 100%;
+}
+
+.map-container {
+  height: 100%;
+  width: 100%;
+}
+
+.status-bar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  z-index: 5;
+}
+
+.status-bar ion-item {
+  --inner-padding-end: 0;
+}
+
+.status-bar h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.status-bar p {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.alerts-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 16px 16px 24px;
+  max-height: 40%;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+}
+
+.alerts-panel h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.alerts-panel h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.alerts-panel p {
+  margin: 4px 0;
+}
+
+.alerts-panel p.meta {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 4;
+}
+
+.empty-state {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #666;
+}
+
+.empty-state ion-icon {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+}
