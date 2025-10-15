@@ -7,5 +7,9 @@ import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
   imports: [IonApp, IonRouterOutlet],
 })
 export class AppComponent {
+  /**
+   * Root shell for the Ionic application. The component itself does not need any logic
+   * because its only responsibility is to host the global router outlet.
+   */
   constructor() {}
 }

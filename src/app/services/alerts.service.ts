@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpParams } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export type AlertStatus = 'pending' | 'accepted' | 'resolved';
@@ -15,52 +16,76 @@ export interface Alert {
   acceptedBy?: string;
   location: {
     type: 'Point';
-    coordinates: [number, number]; // [lng, lat]
+    coordinates: [number, number];
   };
   createdAt: string;
   updatedAt?: string;
 }
 
 @Injectable({ providedIn: 'root' })
+/**
+ * Wraps the alert REST API so components can focus on presentation logic.
+ */
 export class AlertsService {
   private readonly http = inject(HttpClient);
 
-  list(filters?: { status?: 'pending' | 'accepted' | 'active' | 'all'; mine?: boolean }): Observable<Alert[]> {
-    const params: Record<string, string> = {};
+  /**
+   * Fetches alerts from the backend, optionally filtered by status or ownership.
+   */
+  async list(filters?: {
+    status?: 'pending' | 'accepted' | 'active' | 'all';
+    mine?: boolean;
+  }): Promise<Alert[]> {
+    let params = new HttpParams();
     if (filters?.status) {
-      params['status'] = filters.status;
+      params = params.set('status', filters.status);
     }
     if (filters?.mine) {
-      params['mine'] = 'true';
+      params = params.set('mine', 'true');
     }
-    return this.http.get<Alert[]>(`${environment.api}/api/alerts`, { params });
+    return firstValueFrom(
+      this.http.get<Alert[]>(`${environment.api}/api/alerts`, { params })
+    );
   }
 
-  create(payload: {
+  /**
+   * Creates a new alert, including optional photo upload and geolocation payload.
+   */
+  async create(payload: {
     description: string;
     type: string;
     numInjured?: number;
     lng: number;
     lat: number;
     file?: File;
-  }): Observable<{ alert: Alert; nearbyRespondersCount: number }> {
-    const fd = new FormData();
-    fd.append('description', payload.description);
-    fd.append('type', payload.type);
-    if (payload.numInjured != null) {
-      fd.append('numInjured', String(payload.numInjured));
-    }
-    fd.append(
+  }): Promise<{ alert: Alert; nearbyRespondersCount: number }> {
+    const form = new FormData();
+    form.append('description', payload.description);
+    form.append('type', payload.type);
+    form.append(
       'location',
       JSON.stringify({ type: 'Point', coordinates: [payload.lng, payload.lat] })
     );
-    if (payload.file) {
-      fd.append('photo', payload.file);
+    if (payload.numInjured != null) {
+      form.append('numInjured', String(payload.numInjured));
     }
-    return this.http.post<{ alert: Alert; nearbyRespondersCount: number }>(`${environment.api}/api/alerts`, fd);
+    if (payload.file) {
+      form.append('photo', payload.file);
+    }
+    return firstValueFrom(
+      this.http.post<{ alert: Alert; nearbyRespondersCount: number }>(
+        `${environment.api}/api/alerts`,
+        form
+      )
+    );
   }
 
-  accept(id: string): Observable<Alert> {
-    return this.http.patch<Alert>(`${environment.api}/api/alerts/${id}/accept`, {});
+  /**
+   * Marks an alert as accepted by the current responder.
+   */
+  async accept(id: string): Promise<Alert> {
+    return firstValueFrom(
+      this.http.patch<Alert>(`${environment.api}/api/alerts/${id}/accept`, {})
+    );
   }
 }

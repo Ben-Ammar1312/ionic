@@ -1,5 +1,13 @@
 import { CommonModule, DatePipe, NgFor, NgIf } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import {
   IonButton,
   IonButtons,
@@ -16,7 +24,6 @@ import {
 } from '@ionic/angular/standalone';
 import type { ToggleCustomEvent } from '@ionic/angular';
 import { Geolocation } from '@capacitor/geolocation';
-import { firstValueFrom } from 'rxjs';
 import { ToastController } from '@ionic/angular';
 import { Router } from '@angular/router';
 import { AlertsService, Alert } from '../../services/alerts.service';
@@ -49,6 +56,10 @@ declare const L: any;
     DatePipe,
   ],
 })
+/**
+ * Real-time dashboard for responders. Displays pending alerts on a Leaflet map,
+ * allows responders to come online/offline, and keep their location synchronized.
+ */
 export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('mapRef', { static: false }) mapContainer?: ElementRef<HTMLDivElement>;
 
@@ -57,61 +68,82 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
   acceptingId?: string;
   online = false;
 
-  private map?: any;
-  private alertMarkers = new Map<string, any>();
-  private responderMarker?: any;
-  private locationWatchId?: string;
-  private readonly alertsService = inject(AlertsService);
+  private readonly alertsApi = inject(AlertsService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
   private readonly socket = inject(SocketService);
-  private readonly newAlertListener = (alert: Alert) => this.upsertAlert(alert, true);
-  private readonly broadcastAlertListener = (alert: Alert) => this.upsertAlert(alert, false);
-  private readonly updateAlertListener = (alert: Alert) => this.processAlertUpdate(alert);
+  private map?: any;
+  private alertMarkers = new Map<string, any>();
+  private responderMarker?: any;
+  private locationWatchId?: string;
 
+  /**
+   * Socket listeners convert raw payloads into typed alerts.
+   */
+  private readonly handleNewAlert = (data: unknown) => this.handleIncomingAlert(data, true);
+  private readonly handleBroadcastAlert = (data: unknown) => this.handleIncomingAlert(data, false);
+  private readonly handleUpdatedAlert = (data: unknown) => {
+    const alert = this.toAlert(data);
+    if (alert) {
+      this.processAlertUpdate(alert);
+    }
+  };
+
+  /**
+   * Establishes socket listeners when the component is created.
+   */
   ngOnInit(): void {
     this.socket.connect();
-    this.socket.on('newAlert', this.newAlertListener);
-    this.socket.on('alerts:new', this.broadcastAlertListener);
-    this.socket.on('alerts:updated', this.updateAlertListener);
+    this.socket.on('newAlert', this.handleNewAlert);
+    this.socket.on('alerts:new', this.handleBroadcastAlert);
+    this.socket.on('alerts:updated', this.handleUpdatedAlert);
   }
 
+  /**
+   * After Ionic renders the view we can render the map, load alerts, and try to go online.
+   */
   async ngAfterViewInit(): Promise<void> {
     await this.initMap();
     await this.loadAlerts();
     await this.goOnline();
   }
 
+  /**
+   * Removes listeners, stops geolocation and tears down Leaflet when leaving the page.
+   */
   ngOnDestroy(): void {
-    this.socket.off('newAlert', this.newAlertListener);
-    this.socket.off('alerts:new', this.broadcastAlertListener);
-    this.socket.off('alerts:updated', this.updateAlertListener);
+    this.socket.off('newAlert', this.handleNewAlert);
+    this.socket.off('alerts:new', this.handleBroadcastAlert);
+    this.socket.off('alerts:updated', this.handleUpdatedAlert);
     if (this.online) {
       this.emitOffline();
     }
     this.stopLocationWatch();
     this.socket.disconnect();
-    this.alertMarkers.forEach((marker) => marker.remove());
-    this.alertMarkers.clear();
+    this.clearAlertMarkers();
     this.responderMarker?.remove();
     this.map?.remove();
   }
 
+  /**
+   * Called when the online toggle changes. It avoids duplicate transitions.
+   */
   async toggleOnline(event: ToggleCustomEvent): Promise<void> {
-    const { checked: desiredState } = event.detail;
-
-    if (desiredState === this.online) {
+    const { checked } = event.detail;
+    if (checked === this.online) {
       return;
     }
-
-    if (desiredState) {
+    if (checked) {
       await this.goOnline();
     } else {
       await this.goOffline();
     }
   }
 
+  /**
+   * Attempts to accept an alert and updates the list accordingly.
+   */
   async acceptAlert(alert: Alert): Promise<void> {
     if (!this.online) {
       this.presentToast('Go online before responding to alerts.', 'warning');
@@ -120,24 +152,30 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
 
     this.acceptingId = alert._id;
     try {
-      const updated = await firstValueFrom(this.alertsService.accept(alert._id));
+      const updated = await this.alertsApi.accept(alert._id);
       this.processAlertUpdate(updated);
       this.presentToast('Alert accepted. Let the reporter know you are coming!', 'success');
     } catch (error: any) {
-      console.error(error);
-      const message = error?.error?.message || 'Could not accept this alert. It may already be taken.';
+      const message =
+        error?.error?.message || 'Could not accept this alert. It may already be taken.';
       this.presentToast(message, 'danger');
     } finally {
       this.acceptingId = undefined;
     }
   }
 
+  /**
+   * Logs the responder out after notifying the backend that they are offline.
+   */
   async logout(): Promise<void> {
     await this.goOffline(false);
     this.auth.logout();
     this.router.navigateByUrl('/auth/login', { replaceUrl: true });
   }
 
+  /**
+   * Gets the current position, registers the responder on the socket and starts tracking.
+   */
   private async goOnline(): Promise<void> {
     if (this.online) {
       return;
@@ -145,7 +183,8 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
 
     const user = this.auth.currentUser();
     if (!user) {
-      this.logout();
+      this.auth.logout();
+      this.router.navigateByUrl('/auth/login', { replaceUrl: true });
       return;
     }
 
@@ -162,19 +201,21 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
       this.startLocationWatch(user._id);
       this.online = true;
       this.presentToast('You are now online and visible to nearby alerts.', 'success');
-    } catch (error) {
-      console.error(error);
+    } catch {
       this.presentToast('Location permission is required to go online.', 'danger');
       this.online = false;
     }
   }
 
+  /**
+   * Stops location tracking, removes the local marker and optionally shows a toast.
+   */
   private async goOffline(showToast = true): Promise<void> {
     if (!this.online) {
       return;
     }
     this.emitOffline();
-    this.stopLocationWatch();
+    await this.stopLocationWatch();
     this.responderMarker?.remove();
     this.responderMarker = undefined;
     this.online = false;
@@ -183,10 +224,16 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Signals to the backend that the responder should be considered offline.
+   */
   private emitOffline(): void {
     this.socket.emit('responderOffline', {});
   }
 
+  /**
+   * Starts a high-accuracy location watch so the responder icon follows the device.
+   */
   private startLocationWatch(userId: string): void {
     if (this.locationWatchId) {
       return;
@@ -194,16 +241,22 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     this.locationWatchId = Geolocation.watchPosition(
       { enableHighAccuracy: true },
       (position) => {
-        if (!position || !position.coords) {
+        if (!position?.coords) {
           return;
         }
         const { latitude, longitude } = position.coords;
         this.updateResponderLocation(latitude, longitude);
-        this.socket.emit('updateLocation', { coordinates: [longitude, latitude], userId });
+        this.socket.emit('updateLocation', {
+          coordinates: [longitude, latitude],
+          userId,
+        });
       }
     ) as unknown as string;
   }
 
+  /**
+   * Stops the geolocation watch when the responder goes offline or leaves the page.
+   */
   private async stopLocationWatch(): Promise<void> {
     if (this.locationWatchId) {
       await Geolocation.clearWatch({ id: this.locationWatchId });
@@ -211,12 +264,14 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Initializes the Leaflet map once the view has rendered.
+   */
   private async initMap(): Promise<void> {
     if (this.map || !this.mapContainer) {
       return;
     }
     if (typeof L === 'undefined') {
-      console.error('Leaflet library not available.');
       return;
     }
 
@@ -231,24 +286,28 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     }).addTo(this.map);
 
     this.map.setView([36.8065, 10.1815], 12);
-    setTimeout(() => this.map.invalidateSize(), 200);
+    setTimeout(() => this.map?.invalidateSize(), 200);
   }
 
+  /**
+   * Loads pending alerts for responders and draws the markers.
+   */
   private async loadAlerts(): Promise<void> {
     this.loadingAlerts = true;
     try {
-      const alerts = await firstValueFrom(this.alertsService.list({ status: 'pending' }));
-      this.alerts = alerts;
+      this.alerts = await this.alertsApi.list({ status: 'pending' });
       this.refreshMarkers();
       this.fitMapToAlerts();
-    } catch (error) {
-      console.error('Failed to load alerts', error);
-      this.presentToast('Unable to retrieve alerts. Please retry shortly.', 'danger');
+    } catch {
+      this.alerts = [];
     } finally {
       this.loadingAlerts = false;
     }
   }
 
+  /**
+   * Clears existing markers and redraws them based on the latest alert array.
+   */
   private refreshMarkers(): void {
     if (!this.map) {
       return;
@@ -258,6 +317,9 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     this.alerts.forEach((alert) => this.addOrUpdateMarker(alert));
   }
 
+  /**
+   * Ensures that each alert has an associated marker positioned at its coordinates.
+   */
   private addOrUpdateMarker(alert: Alert): void {
     if (!this.map || !alert.location?.coordinates) {
       return;
@@ -286,13 +348,20 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     this.alertMarkers.set(alert._id, marker);
   }
 
+  /**
+   * Generates the message shown inside a marker popup.
+   */
   private markerPopupContent(alert: Alert): string {
-    const injured = alert.numInjured != null ? `<br/>Injured: ${alert.numInjured}` : '';
+    const injured =
+      alert.numInjured != null ? `<br/>Injured: ${alert.numInjured}` : '';
     return `<strong>${alert.type}</strong><br/>${alert.description}${injured}`;
   }
 
+  /**
+   * Creates or updates the green circle that represents the responder.
+   */
   private updateResponderLocation(lat: number, lng: number): void {
-    if (!this.map || typeof lat !== 'number' || typeof lng !== 'number') {
+    if (!this.map || Number.isNaN(lat) || Number.isNaN(lng)) {
       return;
     }
     if (!this.responderMarker) {
@@ -309,6 +378,9 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     this.map.setView([lat, lng], Math.max(this.map.getZoom(), 13));
   }
 
+  /**
+   * Zooms the map so the responder can see the full cluster of pending alerts.
+   */
   private fitMapToAlerts(): void {
     if (!this.map || !this.alerts.length || typeof L === 'undefined') {
       return;
@@ -323,12 +395,25 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private upsertAlert(alert: Alert, notify = false): void {
+  /**
+   * Parses incoming socket payloads and updates the collection of alerts.
+   */
+  private handleIncomingAlert(data: unknown, notify: boolean): void {
+    const alert = this.toAlert(data);
+    if (alert) {
+      this.upsertAlert(alert, notify);
+    }
+  }
+
+  /**
+   * Inserts or replaces alerts in the local array and keeps markers in sync.
+   */
+  private upsertAlert(alert: Alert, notify: boolean): void {
     if (alert.status !== 'pending') {
       this.removeAlert(alert._id);
       return;
     }
-    const index = this.alerts.findIndex((a) => a._id === alert._id);
+    const index = this.alerts.findIndex((item) => item._id === alert._id);
     if (index >= 0) {
       this.alerts[index] = alert;
     } else {
@@ -340,17 +425,23 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     this.addOrUpdateMarker(alert);
   }
 
+  /**
+   * Handles socket updates for accepted/resolved alerts.
+   */
   private processAlertUpdate(alert: Alert): void {
     if (alert.status === 'pending') {
-      this.upsertAlert(alert);
-      return;
+      this.upsertAlert(alert, false);
+    } else {
+      this.removeAlert(alert._id);
     }
-    this.removeAlert(alert._id);
   }
 
+  /**
+   * Removes an alert and its marker from the local state.
+   */
   private removeAlert(id: string): void {
     const before = this.alerts.length;
-    this.alerts = this.alerts.filter((a) => a._id !== id);
+    this.alerts = this.alerts.filter((alert) => alert._id !== id);
     const marker = this.alertMarkers.get(id);
     if (marker) {
       marker.remove();
@@ -361,12 +452,45 @@ export class ResponderPage implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private async presentToast(message: string, color: 'success' | 'warning' | 'danger' | 'tertiary' | 'medium'): Promise<void> {
+  /**
+   * Clears every pending marker from the map.
+   */
+  private clearAlertMarkers(): void {
+    this.alertMarkers.forEach((marker) => marker.remove());
+    this.alertMarkers.clear();
+  }
+
+  /**
+   * Convenience wrapper for presenting toasts with consistent config.
+   */
+  private async presentToast(
+    message: string,
+    color: 'success' | 'warning' | 'danger' | 'tertiary' | 'medium'
+  ): Promise<void> {
     const toast = await this.toastCtrl.create({
       message,
       duration: 2500,
       color,
     });
     toast.present();
+  }
+
+  /**
+   * Type guard that validates socket payloads before the rest of the code consumes them.
+   */
+  private toAlert(data: unknown): Alert | null {
+    if (!data || typeof data !== 'object') {
+      return null;
+    }
+    const candidate = data as Partial<Alert>;
+    if (
+      typeof candidate._id === 'string' &&
+      typeof candidate.type === 'string' &&
+      typeof candidate.description === 'string' &&
+      candidate.location?.coordinates instanceof Array
+    ) {
+      return candidate as Alert;
+    }
+    return null;
   }
 }

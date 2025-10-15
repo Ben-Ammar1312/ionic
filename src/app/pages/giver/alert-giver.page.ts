@@ -1,5 +1,12 @@
 import { CommonModule, DatePipe, NgFor, NgIf } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -27,9 +34,8 @@ import {
 } from '@ionic/angular/standalone';
 import { Geolocation } from '@capacitor/geolocation';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { firstValueFrom } from 'rxjs';
-import { ToastController } from '@ionic/angular';
 import type { RefresherCustomEvent } from '@ionic/angular';
+import { ToastController } from '@ionic/angular';
 import { AlertsService, Alert } from '../../services/alerts.service';
 import { AuthService } from '../../services/auth.service';
 
@@ -69,6 +75,10 @@ declare const L: any;
     DatePipe,
   ],
 })
+/**
+ * Dashboard for alert givers. Shows existing alerts on a Leaflet map and exposes a modal
+ * to create new alerts with optional photos and geolocation metadata.
+ */
 export class AlertGiverPage implements AfterViewInit, OnDestroy {
   @ViewChild('mapRef', { static: false }) mapContainer?: ElementRef<HTMLDivElement>;
 
@@ -82,7 +92,7 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
   photoFile?: File;
 
   private readonly fb = inject(FormBuilder);
-  private readonly alertsService = inject(AlertsService);
+  private readonly alertsApi = inject(AlertsService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toastCtrl = inject(ToastController);
@@ -93,31 +103,44 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
     numInjured: [''],
   });
 
-  private map: any;
-  private markers = new Map<string, any>();
+  private map?: any;
+  private markers: any[] = [];
 
+  /**
+   * Once the view is ready we can initialize Leaflet and fetch alerts.
+   */
   async ngAfterViewInit(): Promise<void> {
     await this.initMap();
     await this.loadAlerts();
   }
 
+  /**
+   * Clean up map state when the component is destroyed.
+   */
   ngOnDestroy(): void {
-    if (this.map) {
-      this.map.remove();
-    }
-    this.markers.clear();
+    this.clearMarkers();
+    this.map?.remove();
   }
 
+  /**
+   * Handles the pull-to-refresh gesture by reloading alerts from the API.
+   */
   async refresh(event: RefresherCustomEvent): Promise<void> {
     await this.loadAlerts();
     event.detail.complete();
   }
 
+  /**
+   * Opens the modal used to submit a new alert.
+   */
   openCreateModal(): void {
     this.createModalOpen = true;
     this.createError = undefined;
   }
 
+  /**
+   * Closes the modal, skipping closure during submission to avoid accidental dismissal.
+   */
   closeCreateModal(): void {
     if (this.createLoading) {
       return;
@@ -131,10 +154,16 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
     this.clearPhoto();
   }
 
+  /**
+   * Ionic emits this when the modal is dismissed via backdrop or close button.
+   */
   onModalDismiss(): void {
     this.createModalOpen = false;
   }
 
+  /**
+   * Validates the form, captures the device location, posts the alert and updates the UI.
+   */
   async submitAlert(): Promise<void> {
     if (this.createForm.invalid || this.createLoading) {
       this.createForm.markAllAsTouched();
@@ -151,25 +180,22 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
 
       const { longitude, latitude } = position.coords;
       const { description, type, numInjured } = this.createForm.getRawValue();
-      const numInjuredValue =
+      const injured =
         numInjured !== null && numInjured !== undefined && numInjured !== ''
           ? Number(numInjured)
           : undefined;
 
-      const response = await firstValueFrom(
-        this.alertsService.create({
-          description,
-          type,
-          numInjured: numInjuredValue,
-          lng: longitude,
-          lat: latitude,
-          file: this.photoFile,
-        })
-      );
+      const response = await this.alertsApi.create({
+        description,
+        type,
+        numInjured: injured,
+        lng: longitude,
+        lat: latitude,
+        file: this.photoFile,
+      });
 
       this.alerts = [response.alert, ...this.alerts];
-      this.addOrUpdateMarker(response.alert);
-      this.fitToAlerts();
+      this.renderMarkers();
       this.closeCreateModal();
       const toast = await this.toastCtrl.create({
         message: 'Alert sent successfully.',
@@ -178,15 +204,17 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
       });
       toast.present();
     } catch (error: any) {
-      console.error(error);
       this.createError =
         error?.error?.message ||
-        'Unable to send the alert. Please make sure location permissions are granted.';
+        'Unable to send the alert. Please grant location permission and retry.';
     } finally {
       this.createLoading = false;
     }
   }
 
+  /**
+   * Opens the device camera/gallery. Stores a preview and converts the image to a File object.
+   */
   async selectPhoto(): Promise<void> {
     try {
       const image = await Camera.getPhoto({
@@ -194,38 +222,43 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
         source: CameraSource.Prompt,
         quality: 70,
       });
-      if (!image || !image.dataUrl) {
+      if (!image?.dataUrl) {
         return;
       }
-      const file = await this.dataUrlToFile(image.dataUrl, image.format || 'jpeg');
-      this.photoFile = file;
+      this.photoFile = await this.dataUrlToFile(image.dataUrl, image.format || 'jpeg');
       this.photoPreview = image.dataUrl;
-    } catch (err) {
-      const error = err as { message?: string } | undefined;
-      if (error?.message && error.message.includes('User cancelled')) {
+    } catch (error: any) {
+      if (typeof error?.message === 'string' && error.message.includes('User cancelled')) {
         return;
       }
-      console.warn('Camera error', err);
       this.createError = 'Could not access camera or gallery.';
     }
   }
 
+  /**
+   * Clears the cached image to reset the file input.
+   */
   clearPhoto(): void {
     this.photoFile = undefined;
     this.photoPreview = undefined;
   }
 
+  /**
+   * Logs out and navigates back to the login page.
+   */
   logout(): void {
     this.auth.logout();
     this.router.navigateByUrl('/auth/login', { replaceUrl: true });
   }
 
+  /**
+   * Builds the Leaflet map component, using current location when available.
+   */
   private async initMap(): Promise<void> {
     if (this.map || !this.mapContainer) {
       return;
     }
     if (typeof L === 'undefined') {
-      console.error('Leaflet library is not loaded.');
       return;
     }
 
@@ -246,79 +279,101 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
       });
       this.map.setView([position.coords.latitude, position.coords.longitude], 13);
     } catch {
-      this.map.setView([36.8065, 10.1815], 12); // Default to Tunis region
+      this.map.setView([36.8065, 10.1815], 12);
     }
 
-    setTimeout(() => this.map.invalidateSize(), 200);
+    setTimeout(() => this.map?.invalidateSize(), 200);
   }
 
+  /**
+   * Loads alerts from the backend and renders the map markers.
+   */
   private async loadAlerts(): Promise<void> {
     this.loadingAlerts = true;
     try {
-      const alerts = await firstValueFrom(this.alertsService.list({ status: 'active' }));
-      this.alerts = alerts;
-      this.refreshMarkers();
-      this.fitToAlerts();
-    } catch (error) {
-      console.error('Unable to load alerts', error);
+      this.alerts = await this.alertsApi.list({ status: 'active' });
+      this.renderMarkers();
+    } catch {
+      this.alerts = [];
     } finally {
       this.loadingAlerts = false;
     }
   }
 
-  private refreshMarkers(): void {
+  /**
+   * Synchronizes Leaflet markers with the in-memory list of alerts.
+   */
+  private renderMarkers(): void {
     if (!this.map) {
       return;
     }
-    this.markers.forEach((marker) => marker.remove());
-    this.markers.clear();
-    this.alerts.forEach((alert) => this.addOrUpdateMarker(alert));
+    this.clearMarkers();
+    this.alerts.forEach((alert) => {
+      const marker = this.createMarker(alert);
+      if (marker) {
+        this.markers.push(marker);
+      }
+    });
+    this.fitToAlerts();
   }
 
-  private addOrUpdateMarker(alert: Alert): void {
-    if (!this.map || !alert.location || !alert.location.coordinates) {
-      return;
+  /**
+   * Creates or skips creation of a marker for a specific alert.
+   */
+  private createMarker(alert: Alert): any | undefined {
+    if (!this.map || !alert.location?.coordinates) {
+      return undefined;
     }
     const [lng, lat] = alert.location.coordinates;
     if (lat == null || lng == null) {
-      return;
+      return undefined;
     }
-
-    const existing = this.markers.get(alert._id);
-    if (existing) {
-      existing.setLatLng([lat, lng]);
-      existing.setPopupContent(this.markerPopupContent(alert));
-      return;
-    }
-
     const marker = L.marker([lat, lng]).addTo(this.map);
     marker.bindPopup(this.markerPopupContent(alert));
-    this.markers.set(alert._id, marker);
+    return marker;
   }
 
+  /**
+   * HTML content for the Leaflet popup associated with each alert marker.
+   */
+  private markerPopupContent(alert: Alert): string {
+    const injured =
+      alert.numInjured != null ? `<br/>Injured: ${alert.numInjured}` : '';
+    return `<strong>${alert.type}</strong><br/>${alert.description}${injured}<br/>Status: ${alert.status}`;
+  }
+
+  /**
+   * Adjusts the map viewport so all alerts are visible.
+   */
   private fitToAlerts(): void {
     if (!this.map || !this.alerts.length || typeof L === 'undefined') {
       return;
     }
-    const bounds = L.latLngBounds(
-      this.alerts
-        .filter((alert) => alert.location?.coordinates)
-        .map((alert) => [alert.location.coordinates[1], alert.location.coordinates[0]])
-    );
-    if (bounds.isValid()) {
+    const points = this.alerts
+      .filter((alert) => alert.location?.coordinates)
+      .map((alert) => [alert.location.coordinates[1], alert.location.coordinates[0]]);
+
+    if (points.length) {
+      const bounds = L.latLngBounds(points);
       this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
     }
   }
 
-  private markerPopupContent(alert: Alert): string {
-    const injured = alert.numInjured != null ? `<br/>Injured: ${alert.numInjured}` : '';
-    return `<strong>${alert.type}</strong><br/>${alert.description}${injured}<br/>Status: ${alert.status}`;
+  /**
+   * Removes all markers from the map and clears the local cache.
+   */
+  private clearMarkers(): void {
+    this.markers.forEach((marker) => marker.remove());
+    this.markers = [];
   }
 
+  /**
+   * Utility for converting a base64 data URL into a File for form submission.
+   */
   private async dataUrlToFile(dataUrl: string, format: string): Promise<File> {
-    const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    const extension = format?.toLowerCase() || 'jpeg';
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const extension = format.toLowerCase();
     return new File([blob], `alert-${Date.now()}.${extension}`, { type: blob.type });
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of, tap } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export type UserRole = 'user' | 'responder';
@@ -17,78 +17,141 @@ export interface AuthResponse extends UserProfile {
 }
 
 @Injectable({ providedIn: 'root' })
+/**
+ * Handles authentication state, communication with the backend and persistence of the session.
+ * Keeping this logic in one service makes it easy to reuse across guards, pages and interceptors.
+ */
 export class AuthService {
-  private tokenKey = 'sos_token';
-  private userKey = 'sos_user';
-  private userSubject = new BehaviorSubject<UserProfile | null>(this.loadStoredUser());
-
-  user$ = this.userSubject.asObservable();
   private readonly http = inject(HttpClient);
+  private readonly tokenKey = 'sos_token';
+  private readonly userKey = 'sos_user';
+  /**
+   * In-memory copy of the user profile to avoid repeated storage parsing.
+   */
+  private cachedUser: UserProfile | null = this.loadStoredUser();
 
-  register(payload: { name: string; email: string; password: string; role: UserRole }): Observable<AuthResponse> {
-    return this.http
-      .post<AuthResponse>(`${environment.api}/api/auth/register`, payload)
-      .pipe(tap((resp) => this.setSession(resp)));
+  /**
+   * Creates a new account and immediately stores the session returned by the backend.
+   */
+  async register(payload: {
+    name: string;
+    email: string;
+    password: string;
+    role: UserRole;
+  }): Promise<AuthResponse> {
+    const response = await firstValueFrom(
+      this.http.post<AuthResponse>(`${environment.api}/api/auth/register`, payload)
+    );
+    this.setSession(response);
+    return response;
   }
 
-  login(payload: { email: string; password: string }): Observable<AuthResponse> {
-    return this.http
-      .post<AuthResponse>(`${environment.api}/api/auth/login`, payload)
-      .pipe(tap((resp) => this.setSession(resp)));
+  /**
+   * Signs the user in by exchanging credentials for a token and profile.
+   */
+  async login(payload: { email: string; password: string }): Promise<AuthResponse> {
+    const response = await firstValueFrom(
+      this.http.post<AuthResponse>(`${environment.api}/api/auth/login`, payload)
+    );
+    this.setSession(response);
+    return response;
   }
 
-  me(): Observable<UserProfile> {
-    return this.http.get<UserProfile>(`${environment.api}/api/auth/profile`).pipe(tap((profile) => this.setUser(profile)));
+  /**
+   * Fetches the currently authenticated user's profile from the backend.
+   * The result is cached so other consumers can reuse it.
+   */
+  async me(): Promise<UserProfile> {
+    const profile = await firstValueFrom(
+      this.http.get<UserProfile>(`${environment.api}/api/auth/profile`)
+    );
+    this.setUser(profile);
+    return profile;
   }
 
-  ensureUserLoaded(): Observable<UserProfile | null> {
-    const existing = this.userSubject.value;
-    if (existing) {
-      return of(existing);
+  /**
+   * Makes sure the profile is available in memory.
+   * If only the token exists, it fetches the profile; otherwise returns the cached value.
+   */
+  async ensureUserLoaded(): Promise<UserProfile | null> {
+    if (this.cachedUser) {
+      return this.cachedUser;
     }
     if (!this.token()) {
-      return of(null);
+      return null;
     }
-    return this.me();
+    try {
+      return await this.me();
+    } catch {
+      this.logout();
+      return null;
+    }
   }
 
+  /**
+   * Returns the persisted bearer token if present.
+   */
   token(): string | null {
     return localStorage.getItem(this.tokenKey);
   }
 
+  /**
+   * Provides the cached profile for synchronous use inside components and guards.
+   */
   currentUser(): UserProfile | null {
-    return this.userSubject.value;
+    return this.cachedUser;
   }
 
+  /**
+   * Quick check used by guards to see whether the user is signed in and the profile is loaded.
+   */
   isAuthenticated(): boolean {
-    return !!this.token() && !!this.userSubject.value;
+    return !!this.token() && !!this.cachedUser;
   }
 
+  /**
+   * Determines if the current user can access responder-only areas.
+   */
   isResponder(): boolean {
-    return this.userSubject.value?.role === 'responder';
+    return this.cachedUser?.role === 'responder';
   }
 
+  /**
+   * Clears the session both from memory and localStorage.
+   */
   logout(): void {
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.userKey);
-    this.userSubject.next(null);
+    this.cachedUser = null;
   }
 
-  private setSession(resp: AuthResponse): void {
-    this.setToken(resp.token);
-    const { token, ...profile } = resp;
+  /**
+   * Persists the token and profile after registration/login.
+   */
+  private setSession(response: AuthResponse): void {
+    this.setToken(response.token);
+    const { token, ...profile } = response;
     this.setUser(profile);
   }
 
+  /**
+   * Stores the user profile and keeps an in-memory snapshot.
+   */
   private setUser(profile: UserProfile): void {
     localStorage.setItem(this.userKey, JSON.stringify(profile));
-    this.userSubject.next(profile);
+    this.cachedUser = profile;
   }
 
+  /**
+   * Persists the JWT for later HTTP calls.
+   */
   private setToken(token: string): void {
     localStorage.setItem(this.tokenKey, token);
   }
 
+  /**
+   * Reads the cached user from storage when the service is first constructed.
+   */
   private loadStoredUser(): UserProfile | null {
     const raw = localStorage.getItem(this.userKey);
     if (!raw) {

@@ -15,7 +15,6 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { NgIf } from '@angular/common';
-import { firstValueFrom } from 'rxjs';
 import { AuthService, UserRole } from '../../services/auth.service';
 
 @Component({
@@ -39,6 +38,9 @@ import { AuthService, UserRole } from '../../services/auth.service';
     IonSpinner,
   ],
 })
+/**
+ * Login screen that accepts credentials and redirects the user according to their role.
+ */
 export class LoginPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
@@ -51,6 +53,9 @@ export class LoginPage implements OnInit {
   errorMessage?: string;
   loading = false;
 
+  /**
+   * If a profile is already cached, skip the form entirely.
+   */
   ngOnInit(): void {
     const user = this.auth.currentUser();
     if (user) {
@@ -58,16 +63,25 @@ export class LoginPage implements OnInit {
     }
   }
 
+  /**
+   * Helper for the template to show the validation warning.
+   */
   get emailInvalid(): boolean {
     const control = this.form.controls.email;
     return control.invalid && (control.dirty || control.touched);
   }
 
+  /**
+   * Helper for the template to detect an invalid password field.
+   */
   get passwordInvalid(): boolean {
     const control = this.form.controls.password;
     return control.invalid && (control.dirty || control.touched);
   }
 
+  /**
+   * Invoked when the form is submitted. Attempts authentication and handles errors.
+   */
   async submit(): Promise<void> {
     if (this.form.invalid || this.loading) {
       this.form.markAllAsTouched();
@@ -78,15 +92,19 @@ export class LoginPage implements OnInit {
     this.errorMessage = undefined;
 
     try {
-      const response = await firstValueFrom(this.auth.login(this.form.getRawValue()));
+      const response = await this.auth.login(this.form.getRawValue());
       this.redirect(response.role);
     } catch (error: any) {
-      this.errorMessage = error?.error?.message || 'Could not sign in. Please try again.';
+      this.errorMessage =
+        error?.error?.message || 'Could not sign in. Please try again.';
     } finally {
       this.loading = false;
     }
   }
 
+  /**
+   * Routes the authenticated user to either the responder or giver map.
+   */
   private redirect(role: UserRole): void {
     const target = role === 'responder' ? '/respond' : '/alerts';
     this.router.navigateByUrl(target, { replaceUrl: true });

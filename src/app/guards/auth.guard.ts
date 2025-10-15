@@ -1,9 +1,12 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router, UrlTree } from '@angular/router';
-import { catchError, map, of } from 'rxjs';
+import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
-export const authGuard: CanActivateFn = () => {
+/**
+ * Verifies that the user is authenticated before allowing access to a route.
+ * It falls back to loading the user profile if only the token is available.
+ */
+export const authGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
@@ -15,17 +18,10 @@ export const authGuard: CanActivateFn = () => {
     return router.createUrlTree(['/auth/login']);
   }
 
-  return auth.ensureUserLoaded().pipe(
-    map((user) => {
-      if (user) {
-        return true;
-      }
-      auth.logout();
-      return router.createUrlTree(['/auth/login']);
-    }),
-    catchError(() => {
-      auth.logout();
-      return of(router.createUrlTree(['/auth/login']));
-    })
-  );
+  const user = await auth.ensureUserLoaded();
+  if (user) {
+    return true;
+  }
+
+  return router.createUrlTree(['/auth/login']);
 };

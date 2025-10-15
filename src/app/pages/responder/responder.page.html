@@ -1,0 +1,70 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Responder</ion-title>
+    <ion-buttons slot="end">
+      <ion-button color="medium" (click)="logout()">Logout</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="map-wrapper">
+    <div class="map-container" #mapRef></div>
+
+    <div class="status-bar">
+      <ion-item lines="none">
+        <ion-icon name="pulse-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>{{ online ? 'You are online' : 'You are offline' }}</h3>
+          <p>
+            {{ online ? 'Alerts update live while you stay connected.' : 'Toggle on when you are ready to help.' }}
+          </p>
+        </ion-label>
+        <ion-toggle [checked]="online" (ionChange)="toggleOnline($event)"></ion-toggle>
+      </ion-item>
+    </div>
+
+    <div class="alerts-panel" *ngIf="alerts.length">
+      <h2>Active Alerts</h2>
+      <ion-list lines="none">
+        <ion-item *ngFor="let alert of alerts">
+          <ion-label>
+            <h3>{{ alert.type }}</h3>
+            <p>{{ alert.description }}</p>
+            <p class="meta">{{ alert.createdAt | date: 'short' }}</p>
+            <p
+              class="meta"
+              *ngIf="alert.numInjured !== null && alert.numInjured !== undefined"
+            >
+              Injured: {{ alert.numInjured }}
+            </p>
+          </ion-label>
+          <ion-button
+            slot="end"
+            color="primary"
+            fill="solid"
+            size="small"
+            [disabled]="acceptingId === alert._id || !online"
+            (click)="acceptAlert(alert)"
+          >
+            <ion-spinner
+              slot="start"
+              *ngIf="acceptingId === alert._id"
+              name="crescent"
+            ></ion-spinner>
+            {{ acceptingId === alert._id ? 'Accepting…' : 'Accept' }}
+          </ion-button>
+        </ion-item>
+      </ion-list>
+    </div>
+
+    <div class="empty-state" *ngIf="!alerts.length && !loadingAlerts">
+      <ion-icon name="notifications-off-outline"></ion-icon>
+      <p>No alerts right now. Stay ready!</p>
+    </div>
+
+    <div class="loading-overlay" *ngIf="loadingAlerts">
+      <ion-spinner name="dots"></ion-spinner>
+    </div>
+  </div>
+</ion-content>

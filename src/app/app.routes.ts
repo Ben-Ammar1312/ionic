@@ -2,6 +2,10 @@ import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
 import { responderGuard } from './guards/responder.guard';
 
+/**
+ * Top-level routing configuration.
+ * Routes are lazy-loaded so the associated page code is downloaded only when needed.
+ */
 export const routes: Routes = [
   {
     path: '',
@@ -9,6 +13,7 @@ export const routes: Routes = [
   },
   {
     path: 'auth',
+    // Authentication flow: login/register presented inside standalone pages.
     children: [
       {
         path: 'login',
@@ -27,11 +32,13 @@ export const routes: Routes = [
   },
   {
     path: 'alerts',
+    // Alert creation map for standard users.
     canActivate: [authGuard],
     loadComponent: () => import('./pages/giver/alert-giver.page').then((m) => m.AlertGiverPage),
   },
   {
     path: 'respond',
+    // Responder map dashboard; requires both authentication and responder permissions.
     canActivate: [authGuard, responderGuard],
     loadComponent: () => import('./pages/responder/responder.page').then((m) => m.ResponderPage),
   },
