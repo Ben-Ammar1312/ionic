@@ -37,6 +37,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/giver/alert-giver.page').then((m) => m.AlertGiverPage),
   },
   {
+    path: 'MakeAlert',
+    // Alert creation map for standard users.
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/alerts-gen/alerts-gen.page').then((m) => m.AlertsGenPage),
+  },
+  {
     path: 'respond',
     // Responder map dashboard; requires both authentication and responder permissions.
     canActivate: [authGuard, responderGuard],
@@ -46,4 +52,9 @@ export const routes: Routes = [
     path: '**',
     redirectTo: '',
   },
+  {
+    path: 'alerts-gen',
+    loadComponent: () => import('./pages/alerts-gen/alerts-gen.page').then( m => m.AlertsGenPage)
+  },
+
 ];
