@@ -1,4 +1,4 @@
-import { CommonModule, DatePipe, NgFor, NgIf } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import {
   AfterViewInit,
   Component,
@@ -50,8 +50,6 @@ declare const L: any;
     IonToggle,
     IonSpinner,
     IonIcon,
-    NgIf,
-    NgFor,
     CommonModule,
     DatePipe,
   ],

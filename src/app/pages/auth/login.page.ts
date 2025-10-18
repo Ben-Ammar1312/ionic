@@ -14,7 +14,6 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
-import { NgIf } from '@angular/common';
 import { AuthService, UserRole } from '../../services/auth.service';
 
 @Component({
@@ -34,7 +33,6 @@ import { AuthService, UserRole } from '../../services/auth.service';
     IonLabel,
     IonInput,
     IonText,
-    NgIf,
     IonSpinner,
   ],
 })
@@ -106,7 +104,7 @@ export class LoginPage implements OnInit {
    * Routes the authenticated user to either the responder or giver map.
    */
   private redirect(role: UserRole): void {
-    const target = role === 'responder' ? '/respond' : '/alerts';
+    const target = role === 'responder' ? '/respond' : '/MakeAlert';
     this.router.navigateByUrl(target, { replaceUrl: true });
   }
 }

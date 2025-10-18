@@ -16,9 +16,11 @@
           required
         ></ion-input>
       </ion-item>
-      <ion-text color="danger" *ngIf="emailInvalid">
-        Please enter a valid email address.
-      </ion-text>
+      @if (emailInvalid) {
+        <ion-text color="danger">
+          Please enter a valid email address.
+        </ion-text>
+      }
 
       <ion-item>
         <ion-label position="stacked">Password</ion-label>
@@ -29,12 +31,16 @@
           required
         ></ion-input>
       </ion-item>
-      <ion-text color="danger" *ngIf="passwordInvalid">
-        Password must be at least 6 characters.
-      </ion-text>
+      @if (passwordInvalid) {
+        <ion-text color="danger">
+          Password must be at least 6 characters.
+        </ion-text>
+      }
     </ion-list>
 
-    <ion-text color="danger" *ngIf="errorMessage">{{ errorMessage }}</ion-text>
+    @if (errorMessage) {
+      <ion-text color="danger">{{ errorMessage }}</ion-text>
+    }
 
     <ion-button
       expand="block"
@@ -42,7 +48,9 @@
       [disabled]="form.invalid || loading"
       class="ion-margin-top"
     >
-      <ion-spinner slot="start" *ngIf="loading"></ion-spinner>
+      @if (loading) {
+        <ion-spinner slot="start"></ion-spinner>
+      }
       Sign in
     </ion-button>
   </form>

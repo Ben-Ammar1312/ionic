@@ -1,4 +1,4 @@
-import { CommonModule, DatePipe, NgFor, NgIf } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import {
   AfterViewInit,
   Component,
@@ -36,7 +36,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import type { RefresherCustomEvent } from '@ionic/angular';
 import { ToastController } from '@ionic/angular';
-import { AlertsService, Alert } from '../../services/alerts.service';
+import { AlertsService, Alert, AlertStatus } from '../../services/alerts.service';
 import { AuthService } from '../../services/auth.service';
 
 declare const L: any;
@@ -69,8 +69,6 @@ declare const L: any;
     IonInput,
     IonSpinner,
     ReactiveFormsModule,
-    NgIf,
-    NgFor,
     CommonModule,
     DatePipe,
   ],
@@ -131,9 +129,18 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
   }
 
   /**
+   * Navigates to the standalone alert creation page.
+   */
+  launchAlert(): void {
+    this.router.navigateByUrl('/MakeAlert');
+  }
+
+  /**
    * Opens the modal used to submit a new alert.
    */
   openCreateModal(): void {
+    this.resetCreateForm();
+    this.clearPhoto();
     this.createModalOpen = true;
     this.createError = undefined;
   }
@@ -146,11 +153,7 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
       return;
     }
     this.createModalOpen = false;
-    this.createForm.reset({
-      type: 'medical',
-      description: '',
-      numInjured: '',
-    });
+    this.resetCreateForm();
     this.clearPhoto();
   }
 
@@ -159,6 +162,12 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
    */
   onModalDismiss(): void {
     this.createModalOpen = false;
+    this.clearPhoto();
+    this.resetCreateForm();
+    if (this.createLoading) {
+      this.createLoading = false;
+    }
+    this.createError = undefined;
   }
 
   /**
@@ -328,7 +337,8 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
     if (lat == null || lng == null) {
       return undefined;
     }
-    const marker = L.marker([lat, lng]).addTo(this.map);
+    const icon = this.buildMarkerIcon(alert.status);
+    const marker = L.marker([lat, lng], icon ? { icon } : undefined).addTo(this.map);
     marker.bindPopup(this.markerPopupContent(alert));
     return marker;
   }
@@ -339,7 +349,8 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
   private markerPopupContent(alert: Alert): string {
     const injured =
       alert.numInjured != null ? `<br/>Injured: ${alert.numInjured}` : '';
-    return `<strong>${alert.type}</strong><br/>${alert.description}${injured}<br/>Status: ${alert.status}`;
+    const statusLabel = this.formatStatus(alert.status);
+    return `<strong>${alert.type}</strong><br/>${alert.description}${injured}<br/>Status: ${statusLabel}`;
   }
 
   /**
@@ -367,6 +378,62 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
     this.markers = [];
   }
 
+  /**
+   * Resets the modal form to a clean state before each use.
+   */
+  private resetCreateForm(): void {
+    this.createForm.setValue({
+      type: 'medical',
+      description: '',
+      numInjured: '',
+    });
+    this.createForm.markAsPristine();
+    this.createForm.markAsUntouched();
+  }
+
+  /**
+   * Builds a colored Leaflet icon so alerts are visible on the map.
+   */
+  private buildMarkerIcon(status: AlertStatus): any | undefined {
+    if (typeof L === 'undefined' || !L?.divIcon) {
+      return undefined;
+    }
+    const color = this.statusColor(status);
+    return L.divIcon({
+      className: 'alert-marker',
+      html: `<span class="alert-marker__pin" style="background:${color}"></span><span class="alert-marker__dot"></span>`,
+      iconSize: [26, 36],
+      iconAnchor: [13, 34],
+      popupAnchor: [0, -32],
+    });
+  }
+
+  /**
+   * Converts backend status codes into UI-friendly labels.
+   */
+  private formatStatus(status: AlertStatus): string {
+    if (status === 'accepted') {
+      return 'Help on the way';
+    }
+    if (status === 'resolved') {
+      return 'Resolved';
+    }
+    return 'Pending';
+  }
+
+  /**
+   * Maps alert statuses to brand colors for markers.
+   */
+  private statusColor(status: AlertStatus): string {
+    switch (status) {
+      case 'accepted':
+        return '#16a34a';
+      case 'resolved':
+        return '#2563eb';
+      default:
+        return '#ea580c';
+    }
+  }
   /**
    * Utility for converting a base64 data URL into a File for form submission.
    */
