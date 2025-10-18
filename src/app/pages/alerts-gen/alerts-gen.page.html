@@ -42,16 +42,10 @@
     <ion-item>
       <ion-label position="stacked">Photo (optional)</ion-label>
       <div class="photo-actions">
-        <ion-button type="button" fill="outline" expand="block" (click)="pickPhoto()" [disabled]="loading">
+        <ion-button type="button" fill="outline" expand="block" (click)="presentActionSheet()" [disabled]="loading">
           Use camera or gallery
         </ion-button>
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          (change)="onFileChange($event)"
-          [disabled]="loading"
-        />
+    
         <ion-text color="medium" *ngIf="form().file">{{ form().file?.name }}</ion-text>
       </div>
     </ion-item>

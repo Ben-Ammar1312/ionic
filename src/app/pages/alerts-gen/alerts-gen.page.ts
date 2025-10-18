@@ -1,10 +1,25 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IonContent, IonHeader, IonTitle, IonToolbar, IonButton, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonTextarea, IonText } from '@ionic/angular/standalone';
+import {
+  IonContent,
+  IonHeader,
+  IonTitle,
+  IonToolbar,
+  IonButton,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonSelect,
+  IonSelectOption,
+  IonTextarea,
+  IonText,
+  ActionSheetController
+} from '@ionic/angular/standalone';
 import { AlertsService } from '../../services/alerts.service';
 import { Geolocation } from '@capacitor/geolocation';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Photos } from '../../services/photo.service';
 
 @Component({
   selector: 'app-alerts-gen',
@@ -41,8 +56,13 @@ export class AlertsGenPage implements OnInit {
   loading = false;
   successMsg = '';
   errorMsg = '';
+  temporaryPhotos: string[] = [];
 
-  constructor(private alertsService: AlertsService) {}
+  constructor(
+    private alertsService: AlertsService,
+    private photos: Photos,
+    private actionSheetCtrl: ActionSheetController // ✅ FIX: Injected properly
+  ) {}
 
   ngOnInit() {
     this.getCurrentLocation();
@@ -157,5 +177,31 @@ export class AlertsGenPage implements OnInit {
     } finally {
       this.loading = false;
     }
+  }
+
+  async presentActionSheet() {
+    const actionSheet = await this.actionSheetCtrl.create({
+      header: 'Ajouter une photo',
+      buttons: [
+        {
+          text: 'Prendre une photo',
+          icon: 'camera',
+          handler: () => {
+            this.photos.takePicture(); // ✅ added `this.`
+          },
+        },
+        {
+          text: 'Choisir depuis la galerie',
+          icon: 'image',
+          handler: async () => {
+            const result = await this.photos.selectionnerPhotos(); // ✅ added `this.`
+            const tab = result.photos.map((photo) => photo.webPath);
+            this.temporaryPhotos = [...tab];
+          },
+        },
+      ],
+    });
+
+    await actionSheet.present();
   }
 }
