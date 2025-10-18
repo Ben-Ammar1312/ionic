@@ -1,0 +1,69 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Report Emergency</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <form (ngSubmit)="submitAlert()">
+    <ion-item>
+      <ion-label position="stacked">Description</ion-label>
+      <ion-textarea
+        [value]="form().description"
+        (ionInput)="form.update(f => ({ ...f, description: $any($event.target).value }))"
+        placeholder="Describe what happened..."
+        required
+      ></ion-textarea>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Type</ion-label>
+      <ion-select
+        [value]="form().type"
+        (ionChange)="form.update(f => ({ ...f, type: $event.detail.value }))"
+        required
+      >
+        <ion-select-option value="accident">Accident</ion-select-option>
+        <ion-select-option value="fire">Fire</ion-select-option>
+        <ion-select-option value="medical">Medical</ion-select-option>
+        <ion-select-option value="crime">Crime</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Number of injured (optional)</ion-label>
+      <ion-input
+        type="number"
+        [value]="form().numInjured"
+        (ionInput)="form.update(f => ({ ...f, numInjured: $any($event.target).valueAsNumber }))"
+      ></ion-input>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Photo (optional)</ion-label>
+      <input type="file" (change)="onFileChange($event)" />
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Location</ion-label>
+      <ion-text>
+        <p *ngIf="form().lat && form().lng">
+          Lat: {{ form().lat | number: '1.5-5' }}, Lng: {{ form().lng | number: '1.5-5' }}
+        </p>
+        <p *ngIf="!form().lat">Fetching location...</p>
+      </ion-text>
+    </ion-item>
+
+    <ion-button
+      expand="block"
+      type="submit"
+      color="danger"
+      [disabled]="loading || !form().lat"
+    >
+      {{ loading ? 'Sending...' : 'Send Alert' }}
+    </ion-button>
+  </form>
+
+  <ion-text color="success" *ngIf="successMsg">{{ successMsg }}</ion-text>
+  <ion-text color="danger" *ngIf="errorMsg">{{ errorMsg }}</ion-text>
+</ion-content>
