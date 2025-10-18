@@ -14,7 +14,6 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
-import { NgIf } from '@angular/common';
 import { AuthService, UserRole } from '../../services/auth.service';
 
 @Component({
@@ -34,7 +33,6 @@ import { AuthService, UserRole } from '../../services/auth.service';
     IonLabel,
     IonInput,
     IonText,
-    NgIf,
     IonSpinner,
   ],
 })

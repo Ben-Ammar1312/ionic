@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IonContent, IonHeader, IonTitle, IonToolbar, IonButton, IonInput, IonItem, IonLabel, IonSelect, IonSelectOption, IonTextarea, IonText } from '@ionic/angular/standalone';
 import { AlertsService } from '../../services/alerts.service';
+import { Geolocation } from '@capacitor/geolocation';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 @Component({
   selector: 'app-alerts-gen',
@@ -46,25 +48,81 @@ export class AlertsGenPage implements OnInit {
     this.getCurrentLocation();
   }
 
+  onDescriptionInput(event: CustomEvent) {
+    const value = (event.detail as { value: string | null }).value ?? '';
+    this.form.update(prev => ({ ...prev, description: value }));
+  }
+
+  onTypeChange(event: CustomEvent) {
+    const value = (event.detail as { value: string | undefined }).value ?? '';
+    this.form.update(prev => ({ ...prev, type: value }));
+  }
+
+  onNumInjuredInput(event: CustomEvent) {
+    const raw = (event.detail as { value: string | null }).value;
+    const parsed = raw === null || raw.trim() === '' ? null : Number(raw);
+    this.form.update(prev => ({ ...prev, numInjured: Number.isNaN(parsed) ? null : parsed }));
+  }
+
   async getCurrentLocation() {
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject);
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true
       });
-      this.form.update(f => ({
-        ...f,
-        lat: position.coords.latitude,
-        lng: position.coords.longitude
-      }));
+      this.setCoords(position.coords.latitude, position.coords.longitude);
+      return;
     } catch (err) {
       console.error('Geolocation error:', err);
-      this.errorMsg = 'Failed to fetch location';
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        try {
+          const fallback = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+          });
+          this.setCoords(fallback.coords.latitude, fallback.coords.longitude);
+          return;
+        } catch (fallbackErr) {
+          console.error('Fallback geolocation error:', fallbackErr);
+        }
+      }
+      this.errorMsg = 'Failed to fetch location. Check permissions or use a secure connection.';
     }
   }
 
   onFileChange(event: any) {
     const file = event.target.files[0];
     this.form.update(f => ({ ...f, file }));
+  }
+
+  async pickPhoto() {
+    try {
+      const result = await Camera.getPhoto({
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Prompt,
+        quality: 70
+      });
+      if (!result.dataUrl) {
+        return;
+      }
+      const file = await this.dataUrlToFile(result.dataUrl, result.format || 'jpeg');
+      this.form.update(f => ({ ...f, file }));
+    } catch (err) {
+      console.error('Camera error:', err);
+      this.errorMsg = 'Could not access camera or gallery';
+    }
+  }
+
+  private setCoords(lat: number, lng: number) {
+    this.form.update(f => ({
+      ...f,
+      lat,
+      lng
+    }));
+  }
+
+  private async dataUrlToFile(dataUrl: string, format: string): Promise<File> {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    return new File([blob], `alert-${Date.now()}.${format}`, { type: blob.type });
   }
 
   async submitAlert() {

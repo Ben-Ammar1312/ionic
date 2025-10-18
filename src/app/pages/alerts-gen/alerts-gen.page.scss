@@ -1,0 +1,10 @@
+.photo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.photo-actions input[type='file'] {
+  font-size: 0.9rem;
+}

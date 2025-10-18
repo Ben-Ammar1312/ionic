@@ -15,29 +15,42 @@
   <div class="map-wrapper">
     <div class="map-container" #mapRef></div>
 
-    <div class="loading-overlay" *ngIf="loadingAlerts">
-      <ion-spinner name="crescent"></ion-spinner>
-    </div>
+    @if (loadingAlerts) {
+      <div class="loading-overlay">
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+    }
 
-    <div class="alerts-sheet" *ngIf="alerts.length">
-      <h2>Alerts nearby</h2>
-      <ion-list lines="none">
-        <ion-item *ngFor="let alert of alerts">
-          <ion-label>
-            <h3>{{ alert.type }}</h3>
-            <p>{{ alert.description }}</p>
-            <p class="meta">
-              Status: {{ alert.status }} · {{ alert.createdAt | date: 'short' }}
-            </p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
-    </div>
+    @if (alerts.length) {
+      <div class="alerts-sheet">
+        <h2>Alerts nearby</h2>
+        <ion-list lines="none">
+          @for (alert of alerts; track alert._id) {
+            <ion-item>
+              <ion-label>
+                <h3>{{ alert.type }}</h3>
+                <p>{{ alert.description }}</p>
+                <p class="meta">
+                  Status: {{ alert.status === 'accepted' ? 'Help on the way' : alert.status | titlecase }} ·
+                  {{ alert.createdAt | date: 'short' }}
+                </p>
+              </ion-label>
+            </ion-item>
+          }
+        </ion-list>
+      </div>
+    }
   </div>
 
-  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-    <ion-fab-button color="danger" (click)="openCreateModal()">
-      <ion-icon name="alert"></ion-icon>
+  <ion-fab
+    vertical="bottom"
+    horizontal="end"
+    slot="fixed"
+    class="alerts-fab"
+    [class.alerts-fab--raised]="alerts.length"
+  >
+    <ion-fab-button color="danger" (click)="launchAlert()">
+      <span class="fab-label">Launch alert</span>
     </ion-fab-button>
   </ion-fab>
 
@@ -78,16 +91,15 @@
               required
             ></ion-textarea>
           </ion-item>
-          <ion-text
-            color="danger"
-            *ngIf="
-              createForm.controls.description.invalid &&
-              (createForm.controls.description.dirty ||
-                createForm.controls.description.touched)
-            "
-          >
-            Please include a brief description.
-          </ion-text>
+          @if (
+            createForm.controls.description.invalid &&
+            (createForm.controls.description.dirty ||
+              createForm.controls.description.touched)
+          ) {
+            <ion-text color="danger">
+              Please include a brief description.
+            </ion-text>
+          }
 
           <ion-item>
             <ion-label position="stacked">Number injured (optional)</ion-label>
@@ -100,20 +112,25 @@
             <ion-icon name="camera" slot="start"></ion-icon>
             Add photo
           </ion-button>
-          <img *ngIf="photoPreview" [src]="photoPreview" alt="Alert photo preview" class="photo-preview" />
-          <ion-button
-            *ngIf="photoPreview"
-            type="button"
-            fill="clear"
-            size="small"
-            color="medium"
-            (click)="clearPhoto()"
-          >
-            Remove photo
-          </ion-button>
+          @if (photoPreview) {
+            <img [src]="photoPreview" alt="Alert photo preview" class="photo-preview" />
+          }
+          @if (photoPreview) {
+            <ion-button
+              type="button"
+              fill="clear"
+              size="small"
+              color="medium"
+              (click)="clearPhoto()"
+            >
+              Remove photo
+            </ion-button>
+          }
         </div>
 
-        <ion-text color="danger" *ngIf="createError">{{ createError }}</ion-text>
+        @if (createError) {
+          <ion-text color="danger">{{ createError }}</ion-text>
+        }
 
         <ion-button
           type="submit"
@@ -121,7 +138,9 @@
           class="ion-margin-top"
           [disabled]="createForm.invalid || createLoading"
         >
-          <ion-spinner slot="start" *ngIf="createLoading"></ion-spinner>
+          @if (createLoading) {
+            <ion-spinner slot="start"></ion-spinner>
+          }
           Send alert
         </ion-button>
       </form>

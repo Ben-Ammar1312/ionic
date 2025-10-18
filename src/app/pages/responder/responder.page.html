@@ -24,47 +24,52 @@
       </ion-item>
     </div>
 
-    <div class="alerts-panel" *ngIf="alerts.length">
-      <h2>Active Alerts</h2>
-      <ion-list lines="none">
-        <ion-item *ngFor="let alert of alerts">
-          <ion-label>
-            <h3>{{ alert.type }}</h3>
-            <p>{{ alert.description }}</p>
-            <p class="meta">{{ alert.createdAt | date: 'short' }}</p>
-            <p
-              class="meta"
-              *ngIf="alert.numInjured !== null && alert.numInjured !== undefined"
-            >
-              Injured: {{ alert.numInjured }}
-            </p>
-          </ion-label>
-          <ion-button
-            slot="end"
-            color="primary"
-            fill="solid"
-            size="small"
-            [disabled]="acceptingId === alert._id || !online"
-            (click)="acceptAlert(alert)"
-          >
-            <ion-spinner
-              slot="start"
-              *ngIf="acceptingId === alert._id"
-              name="crescent"
-            ></ion-spinner>
-            {{ acceptingId === alert._id ? 'Accepting…' : 'Accept' }}
-          </ion-button>
-        </ion-item>
-      </ion-list>
-    </div>
+    @if (alerts.length) {
+      <div class="alerts-panel">
+        <h2>Active Alerts</h2>
+        <ion-list lines="none">
+          @for (alert of alerts; track alert._id) {
+            <ion-item>
+              <ion-label>
+                <h3>{{ alert.type }}</h3>
+                <p>{{ alert.description }}</p>
+                <p class="meta">{{ alert.createdAt | date: 'short' }}</p>
+                @if (alert.numInjured !== null && alert.numInjured !== undefined) {
+                  <p class="meta">
+                    Injured: {{ alert.numInjured }}
+                  </p>
+                }
+              </ion-label>
+              <ion-button
+                slot="end"
+                color="primary"
+                fill="solid"
+                size="small"
+                [disabled]="acceptingId === alert._id || !online"
+                (click)="acceptAlert(alert)"
+              >
+                @if (acceptingId === alert._id) {
+                  <ion-spinner slot="start" name="crescent"></ion-spinner>
+                }
+                {{ acceptingId === alert._id ? 'Accepting…' : 'Accept' }}
+              </ion-button>
+            </ion-item>
+          }
+        </ion-list>
+      </div>
+    }
 
-    <div class="empty-state" *ngIf="!alerts.length && !loadingAlerts">
-      <ion-icon name="notifications-off-outline"></ion-icon>
-      <p>No alerts right now. Stay ready!</p>
-    </div>
+    @if (!alerts.length && !loadingAlerts) {
+      <div class="empty-state">
+        <ion-icon name="notifications-off-outline"></ion-icon>
+        <p>No alerts right now. Stay ready!</p>
+      </div>
+    }
 
-    <div class="loading-overlay" *ngIf="loadingAlerts">
-      <ion-spinner name="dots"></ion-spinner>
-    </div>
+    @if (loadingAlerts) {
+      <div class="loading-overlay">
+        <ion-spinner name="dots"></ion-spinner>
+      </div>
+    }
   </div>
 </ion-content>

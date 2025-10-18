@@ -10,7 +10,7 @@
       <ion-label position="stacked">Description</ion-label>
       <ion-textarea
         [value]="form().description"
-        (ionInput)="form.update(f => ({ ...f, description: $any($event.target).value }))"
+        (ionInput)="onDescriptionInput($event)"
         placeholder="Describe what happened..."
         required
       ></ion-textarea>
@@ -20,7 +20,7 @@
       <ion-label position="stacked">Type</ion-label>
       <ion-select
         [value]="form().type"
-        (ionChange)="form.update(f => ({ ...f, type: $event.detail.value }))"
+        (ionChange)="onTypeChange($event)"
         required
       >
         <ion-select-option value="accident">Accident</ion-select-option>
@@ -35,13 +35,25 @@
       <ion-input
         type="number"
         [value]="form().numInjured"
-        (ionInput)="form.update(f => ({ ...f, numInjured: $any($event.target).valueAsNumber }))"
+        (ionInput)="onNumInjuredInput($event)"
       ></ion-input>
     </ion-item>
 
     <ion-item>
       <ion-label position="stacked">Photo (optional)</ion-label>
-      <input type="file" (change)="onFileChange($event)" />
+      <div class="photo-actions">
+        <ion-button type="button" fill="outline" expand="block" (click)="pickPhoto()" [disabled]="loading">
+          Use camera or gallery
+        </ion-button>
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          (change)="onFileChange($event)"
+          [disabled]="loading"
+        />
+        <ion-text color="medium" *ngIf="form().file">{{ form().file?.name }}</ion-text>
+      </div>
     </ion-item>
 
     <ion-item>
