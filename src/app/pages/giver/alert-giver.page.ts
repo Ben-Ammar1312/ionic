@@ -33,7 +33,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { Geolocation } from '@capacitor/geolocation';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Camera, CameraResultType, CameraSource, Photo } from '@capacitor/camera';
 import type { RefresherCustomEvent } from '@ionic/angular';
 import { ToastController } from '@ionic/angular';
 import { AlertsService, Alert, AlertStatus } from '../../services/alerts.service';
@@ -227,15 +227,18 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
   async selectPhoto(): Promise<void> {
     try {
       const image = await Camera.getPhoto({
-        resultType: CameraResultType.DataUrl,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Prompt,
         quality: 70,
+        webUseInput: true,
       });
-      if (!image?.dataUrl) {
+      const processed = await this.processPhoto(image);
+      if (!processed) {
         return;
       }
-      this.photoFile = await this.dataUrlToFile(image.dataUrl, image.format || 'jpeg');
-      this.photoPreview = image.dataUrl;
+      this.photoFile = processed.file;
+      this.photoPreview = processed.preview;
+      this.createError = undefined;
     } catch (error: any) {
       if (typeof error?.message === 'string' && error.message.includes('User cancelled')) {
         return;
@@ -442,5 +445,26 @@ export class AlertGiverPage implements AfterViewInit, OnDestroy {
     const blob = await response.blob();
     const extension = format.toLowerCase();
     return new File([blob], `alert-${Date.now()}.${extension}`, { type: blob.type });
+  }
+
+  private async uriToFile(uri: string, format?: string | null): Promise<File> {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const mimeType = blob.type || (format ? `image/${format.toLowerCase()}` : 'image/jpeg');
+    const extension = format?.toLowerCase() || mimeType.split('/')[1] || 'jpeg';
+    return new File([blob], `alert-${Date.now()}.${extension}`, { type: mimeType });
+  }
+
+  private async processPhoto(photo: Photo): Promise<{ file: File; preview: string } | undefined> {
+    if (photo.dataUrl) {
+      const file = await this.dataUrlToFile(photo.dataUrl, photo.format || 'jpeg');
+      return { file, preview: photo.dataUrl };
+    }
+    const preview = photo.webPath || photo.path;
+    if (!preview) {
+      return undefined;
+    }
+    const file = await this.uriToFile(preview, photo.format);
+    return { file, preview };
   }
 }
